@@ -92,6 +92,69 @@ export class MCPHandler {
           properties: {},
           required: []
         }
+      },
+      {
+        name: 'acelab_create_project',
+        description: 'Create a new project in acelab using admin API',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Project name (required)'
+            },
+            projectOwnerId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'UUID of the project owner (required)'
+            },
+            typeId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Project type UUID (optional)'
+            },
+            stateId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'State UUID (optional)'
+            },
+            phaseId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Phase UUID (optional)'
+            },
+            budgetId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Budget UUID (optional)'
+            },
+            googlePlaceId: {
+              type: 'string',
+              description: 'Google Place ID (optional)'
+            }
+          },
+          required: ['name', 'projectOwnerId']
+        }
+      },
+      {
+        name: 'acelab_get_user_projects',
+        description: 'Get all projects for the currently logged in user',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            orderBy: {
+              type: 'string',
+              enum: ['Alphabetical', 'CreatedDate'],
+              description: 'Order projects by field (optional)'
+            },
+            categoryId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Filter by category UUID (optional)'
+            }
+          },
+          required: []
+        }
       }
     ];
   }
@@ -116,6 +179,12 @@ export class MCPHandler {
         
         case 'acelab_test_connection':
           return await this.handleTestConnection();
+        
+        case 'acelab_create_project':
+          return await this.handleCreateProject(args);
+        
+        case 'acelab_get_user_projects':
+          return await this.handleGetUserProjects(args);
         
         default:
           throw new Error(`Unknown tool: ${name}`);
@@ -268,6 +337,85 @@ export class MCPHandler {
       success: true,
       connected: isConnected,
       message: isConnected ? 'Connection successful' : 'Connection failed'
+    };
+  }
+
+  private async handleCreateProject(args: any): Promise<any> {
+    const { name, projectOwnerId, typeId, stateId, phaseId, budgetId, googlePlaceId } = args;
+    
+    if (!name || typeof name !== 'string') {
+      throw new Error('Project name is required and must be a string');
+    }
+    
+    if (!projectOwnerId || typeof projectOwnerId !== 'string') {
+      throw new Error('Project owner ID is required and must be a UUID string');
+    }
+
+    const projectData: any = {
+      name,
+      projectOwnerId
+    };
+
+    // Add optional fields if provided
+    if (typeId) projectData.typeId = typeId;
+    if (stateId) projectData.stateId = stateId;
+    if (phaseId) projectData.phaseId = phaseId;
+    if (budgetId) projectData.budgetId = budgetId;
+    if (googlePlaceId) projectData.googlePlaceId = googlePlaceId;
+
+    const response = await this.oauthService.makeRequest({
+      endpoint: '/admin/projects',
+      method: 'POST',
+      data: projectData
+    });
+
+    // Broadcast successful project creation via SSE
+    this.sseService.broadcast({
+      event: 'project_created',
+      data: {
+        projectId: response.data,
+        projectName: name,
+        projectOwnerId,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    return {
+      success: true,
+      projectId: response.data,
+      message: `Project "${name}" created successfully`,
+      data: response.data
+    };
+  }
+
+  private async handleGetUserProjects(args: any): Promise<any> {
+    const { orderBy, categoryId } = args;
+    
+    const params: any = {};
+    if (orderBy) params.orderBy = orderBy;
+    if (categoryId) params.categoryId = categoryId;
+
+    const response = await this.oauthService.makeRequest({
+      endpoint: '/project/my-projects',
+      method: 'GET',
+      params
+    });
+
+    // Broadcast successful projects retrieval via SSE
+    this.sseService.broadcast({
+      event: 'projects_retrieved',
+      data: {
+        projectCount: Array.isArray(response.data) ? response.data.length : 0,
+        filters: { orderBy, categoryId },
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    return {
+      success: true,
+      projects: response.data,
+      count: Array.isArray(response.data) ? response.data.length : 0,
+      message: 'User projects retrieved successfully'
     };
   }
 }

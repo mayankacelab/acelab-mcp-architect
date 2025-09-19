@@ -42,6 +42,25 @@ Test the connection to acelab API.
 
 **Parameters:** None
 
+### 5. acelab_create_project
+Create a new project in acelab using admin API.
+
+**Parameters:**
+- `name` (required): Project name
+- `projectOwnerId` (required): UUID of the project owner
+- `typeId` (optional): Project type UUID
+- `stateId` (optional): State UUID  
+- `phaseId` (optional): Phase UUID
+- `budgetId` (optional): Budget UUID
+- `googlePlaceId` (optional): Google Place ID
+
+### 6. acelab_get_user_projects
+Get all projects for the currently logged in user.
+
+**Parameters:**
+- `orderBy` (optional): Order projects by field ('Alphabetical' or 'CreatedDate')
+- `categoryId` (optional): Filter by category UUID
+
 ## Installation
 
 1. Clone the repository:
@@ -167,6 +186,25 @@ curl -X POST http://localhost:3000/tools/acelab_stream_events/execute \
   -d '{
     "endpoint": "/events",
     "interval": 3000
+  }'
+```
+
+#### Get user projects:
+```bash
+curl -X POST http://localhost:3000/tools/acelab_get_user_projects/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "orderBy": "CreatedDate"
+  }'
+```
+
+#### Create a project:
+```bash
+curl -X POST http://localhost:3000/tools/acelab_create_project/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My New Project",
+    "projectOwnerId": "123e4567-e89b-12d3-a456-426614174000"
   }'
 ```
 
